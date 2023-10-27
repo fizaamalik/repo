@@ -25,55 +25,30 @@ public class BookController {
 	//@RequestMapping(value="/books", method=RequestMethod.GET)
 	@GetMapping("/books")
 	public ResponseEntity<List<Book>> getBooks() {
-		List<Book> list = this.bookservice.getAllBooks();
-		if(list.size()<=0) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-		}
-		return ResponseEntity.status(HttpStatus.CREATED).body(list);
+		
+		return bookservice.getBooks();
 	}
 	@GetMapping("/book/{id}")
 	public ResponseEntity<Book> getBook(@PathVariable("id") int id) {
-		Book book = bookservice.getBookById(id);
-		if(book==null) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-		}
-		return ResponseEntity.of(Optional.of(book));
+		
+	
+		return bookservice.getBook(id);
 	}
 	@PostMapping("/books")
 	public ResponseEntity<Book> addBook(@RequestBody Book book) {
-		Book b = null;
-		try {
-		b = this.bookservice.addBook(book);
-		return ResponseEntity.status(HttpStatus.CREATED).build();
-		}
-		catch(Exception e ) {
-			e.printStackTrace();
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-		}
+		
+		return bookservice.addBook(book);
 		
 	}
 	@DeleteMapping("/books/{bookId}")
-	public ResponseEntity<Void> deleteBook(@PathVariable("bookId") int bookId){
-		try {
-		this.bookservice.deleteBook(bookId);
-		return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
-		}
-		catch(Exception e ) {
-			e.printStackTrace();
-		}
-		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+	public ResponseEntity<Book> deleteBook(@PathVariable("bookId") int bookId){
+		
+		return bookservice.deleteBook(bookId);
 		
 	}
 	@PutMapping("/books/{bookId}")
 	public ResponseEntity<Book> updateBook(@RequestBody Book book, @PathVariable("bookId") int bookId) {
-		try {
-		this.bookservice.updateBook(book, bookId);
-		return ResponseEntity.ok().body(book);
-		}
-		catch(Exception e ) {
-			e.printStackTrace();
-		}
-		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		return bookservice.updateBook(book, bookId);
 		
 	}
 }

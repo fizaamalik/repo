@@ -2,22 +2,25 @@
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import com.api.book.bootrestbook.dao.BookRepository;
 import com.api.book.bootrestbook.entities.Book;
 @Component
 public class BookServices {
-//	private static List<Book> list = new ArrayList<>();
-//	static {
-//		list.add(new Book(12,"java", "xyz"));
-//		list.add(new Book(13, "python", "abc"));
-//		list.add(new Book(14,"c++", "ghj"));
-//		list.add(new Book(15, "ruby", "iop"));
-//	}
+
 	@Autowired
 	private BookRepository bookrepo;
 	//get all books
@@ -37,16 +40,70 @@ public class BookServices {
 		}
 		return b;
 	}
-	public Book addBook(Book b) {
+	public Book addBooks(Book b) {
 		//Author author = authorrepo.save(b.author);
 		Book result = bookrepo.save(b);
 		return result;
 	}
-	public void deleteBook(int bid) {
+	public void deleteBooks(int bid) {
 		bookrepo.deleteById(bid);
 	}
-	public void updateBook(Book book, int bookId) {
+	public void updateBooks(Book book, int bookId) {
 		book.setId(bookId);
 		bookrepo.save(book);
+	}
+	
+
+	public ResponseEntity<List<Book>> getBooks() {
+		List<Book> list = getAllBooks();
+		if(list.size()<=0) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+		}
+		return ResponseEntity.status(HttpStatus.CREATED).body(list);
+	}
+
+	public ResponseEntity<Book> getBook(@PathVariable("id") int id) {
+		Book book = getBookById(id);
+		if(book==null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+		}
+		return ResponseEntity.of(Optional.of(book));
+	}
+
+	public ResponseEntity<Book> addBook(@RequestBody Book book) {
+		Book b = null;
+		try {
+		b = addBooks(book);
+		return ResponseEntity.status(HttpStatus.CREATED).build();
+		}
+		catch(Exception e ) {
+			e.printStackTrace();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
+		
+	}
+
+	public ResponseEntity<Book> deleteBook(@PathVariable("bookId") int bookId){
+		try {
+		deleteBooks(bookId);
+		return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+		}
+		catch(Exception e ) {
+			e.printStackTrace();
+		}
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		
+	}
+	
+	public ResponseEntity<Book> updateBook(@RequestBody Book book, @PathVariable("bookId") int bookId) {
+		try {
+		updateBooks(book, bookId);
+		return ResponseEntity.ok().body(book);
+		}
+		catch(Exception e ) {
+			e.printStackTrace();
+		}
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		
 	}
 }
