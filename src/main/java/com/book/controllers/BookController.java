@@ -1,11 +1,11 @@
 package com.book.controllers;
 
+import com.book.auditing.ApplicationAuditing;
 import com.book.entities.Book;
-import com.book.entities.HistoricalBook;
 import com.book.entities.Library;
 import com.book.services.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.RequestEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,17 +13,16 @@ import java.util.List;
 
 @RestController
 public class BookController {
-
-    private final BookService bookService;
+    @Autowired
+    private BookService bookService;
 
     @Autowired
     public BookController(BookService bookService) {
         this.bookService = bookService;
     }
 
-
     @GetMapping("/books")
-    public ResponseEntity getAllBooks(Book book){
+    public ResponseEntity getAllBooks(){
         return this.bookService.getAllBooks();
     }
 
@@ -57,20 +56,28 @@ public class BookController {
         return this.bookService.addPublisherToExistingBooks();
     }
 
-    @PostMapping("/library")
-    public ResponseEntity addLibrary(@RequestBody Library library){
-        return this.bookService.addLibrary(library);
-    }
-
     @GetMapping("/libraries")
     public ResponseEntity getAllLibraries() {
         return this.bookService.getAllLibraries();
     }
 
-    @PostMapping("/history-save")
-    public void saveBook(@RequestBody Book book) {
-        bookService.saveHistoricalBooks(book);
-
+    @GetMapping("/{bookId}/audit-history")
+    public ResponseEntity<List<ApplicationAuditing>> getAuditHistory(@PathVariable int bookId) {
+        List<ApplicationAuditing> auditHistory = bookService.getAuditHistory(bookId);
+        return new ResponseEntity<>(auditHistory, HttpStatus.OK);
     }
+
+//    @PostMapping("/library")
+//    public ResponseEntity addLibrary(@RequestBody Library library){
+//        return this.bookService.addLibrary(library);
+//    }
+//
+
+
+//    @PostMapping("/history-save")
+//    public void saveBook(@RequestBody Book book) {
+//        bookService.saveHistoricalBooks(book);
+//
+//    }
 
 }

@@ -1,39 +1,40 @@
 package com.book.services;
 
+import com.book.auditing.ApplicationAuditing;
+import com.book.dao.AuditRepo;
 import com.book.dao.BookRepo;
-import com.book.dao.HistoricBookRepo;
 import com.book.dao.LibraryRepository;
 import com.book.entities.Book;
-import com.book.entities.HistoricalBook;
 import com.book.entities.Library;
 import com.book.entities.Publisher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class BookService {
     @Autowired
     private BookRepo bookRepo;
 
+    private final AuditRepo bookAuditRepository;
+
     @Autowired
-    private BookService(BookRepo bookRepo) {
-        this.bookRepo = bookRepo;
+    public BookService(AuditRepo bookAuditRepository) {
+        this.bookAuditRepository = bookAuditRepository;
     }
 
     @Autowired
     private LibraryRepository libraryRepo;
 
-    @Autowired
-    private HistoricBookRepo historicBookRepo;
+//
 
     public ResponseEntity getAllBooks() {
-        List<Book> list = this.bookRepo.findAll();
+        List<Book> list = bookRepo.findAll();
         try {
             if (list.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No books found");
@@ -67,11 +68,8 @@ public class BookService {
                 throw new IllegalArgumentException("Publisher is mandatory for book creation.");
             }
 
-            //book.setLibrary(checkLibraryByName(book.getLibrary()));
-//            System.out.println(book.getLibrary());
-
             Book b = bookRepo.save(book);
-
+            createAuditEntry(b, "system", "Create");
 
             return ResponseEntity.ok(b);
         } catch (Exception e) {
@@ -80,28 +78,11 @@ public class BookService {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid attribute values");
     }
 
-//    public Library checkLibraryByName(Library library) {
-//
-////        Optional<Library> lib = libraryRepo.findByName(library.getLibraryName());
-//        //return lib.orElseGet(() -> createDefaultLibrary(lib.get().getLibraryName()));
-//        Library lib = libraryRepo.findDistinctByLibraryName(library.getLibraryName());
-//        if (lib == null) {
-//            Library lib1 = new Library();
-//            lib1.setLibraryName(library.getLibraryName());
-//            return lib1;
-//        }
-//        return lib;
-//    }
-
-//    private Library createDefaultLibrary(String libName) {
-//        Library lib1 = new Library();
-//        lib1.setLibraryName(libName);
-//        return libraryRepo.save(lib1);
-//    }
 
     public ResponseEntity deleteBookById(int id) {
         try {
             if (bookRepo.existsById(id)) {
+                createAuditEntry(bookRepo.findById(id),"system", "Delete");
                 bookRepo.deleteById(id);
                 return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Successfully deleted");
             }
@@ -114,10 +95,13 @@ public class BookService {
     public ResponseEntity updateBook(Book book, int id) {
         try {
             Book existingBook = bookRepo.findById(id);
-
-            bookRepo.save(book);
-//            HistoricalBook hbook = (HistoricalBook) book.getHistoricalBooks();
-//            historicBookRepo.save(hbook);
+            existingBook.setTitle(book.getTitle());
+            existingBook.setAuthor(book.getAuthor());
+            existingBook.setPublisher(book.getPublisher());
+            existingBook.setLibrary(book.getLibrary());
+            existingBook.setLastModified(LocalDateTime.now());
+            createAuditEntry(existingBook, "system", "Update");
+            bookRepo.save(existingBook);
 
             return ResponseEntity.status(HttpStatus.OK).body(existingBook);
 
@@ -127,10 +111,15 @@ public class BookService {
     }
 
 }
-
+        @Transactional
         public ResponseEntity deleteAllBooks() {
 
-        bookRepo.deleteAll();
+
+        List<Book> deletedBooks = bookRepo.findAll();
+            for (Book deletedBook : deletedBooks) {
+                createAuditEntry(deletedBook, "system", "DELETE");
+            }
+            bookRepo.deleteAll();
         return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Deleted Successfully");
 
     }
@@ -168,28 +157,17 @@ public class BookService {
         return ResponseEntity.ok(libraries);
     }
 
-    public ResponseEntity addLibrary(Library library) {
-        try {
-            Library savedLibrary = libraryRepo.save(library);
-            return ResponseEntity.ok(savedLibrary);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid attribute values");
-        }
+    @Transactional
+    public void createAuditEntry(Book book, String modifiedBy, String actionType) {
+        ApplicationAuditing bookAudit = new ApplicationAuditing(book, modifiedBy, actionType);
+        bookAuditRepository.save(bookAudit);
     }
 
-    public void saveHistoricalBooks(Book book) {
-        historicBookRepo.saveAll(book.getHistoricalBooks());
+    public List<ApplicationAuditing> getAuditHistory(int bookId) {
+
+        return bookAuditRepository.findByBookIdOrderByCreateDate(bookId);
     }
 
-//    public ResponseEntity set20name() {
-//        try{
-//            bookRepo.set20name();
-//            return ResponseEntity.ok("done");
-//        }catch (Exception e){
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-//        }
-//    }
 
 
 }
