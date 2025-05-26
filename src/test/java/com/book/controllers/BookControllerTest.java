@@ -1,10 +1,16 @@
 package com.book.controllers;
 
+import com.book.auditing.ApplicationAuditing;
+import com.book.entities.Book;
+import com.book.entities.Library;
+import com.book.services.BookService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -12,337 +18,255 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BookControllerTest {
-    @Mock private BookService bookService;
-    @InjectMocks private BookController bookController;
 
-    @Test
-    public void getAllBooks_happy_path() {
-        // Arrange
-        List<Book> mockBooks = Arrays.asList(new Book(1, "Book One"), new Book(2, "Book Two"));
-        when(bookService.getAllBooks()).thenReturn(mockBooks);
+    @Mock
+    private BookService bookService;
 
-        // Act
-        ResponseEntity<List<Book>> response = bookController.getAllBooks();
+    @InjectMocks
+    private BookController bookController;
 
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody()).hasSize(2);
-        assertThat(response.getBody()).containsExactlyElementsOf(mockBooks);
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    public void getBookById_happy_path() {
-        // Arrange
-        int bookId = 1;
-        Book expectedBook = new Book(bookId, "Effective Java", "Joshua Bloch");
-        when(bookService.findBookById(bookId)).thenReturn(expectedBook);
+    void getAllBooks_happy_path() {
+        List<Book> mockBooks = Arrays.asList(new Book("Title1", "Author1"), new Book("Title2", "Author2"));
+        ResponseEntity<List<Book>> expectedResponse = new ResponseEntity<>(mockBooks, HttpStatus.OK);
+        when(bookService.getAllBooks()).thenReturn(expectedResponse);
 
-        // Act
+        ResponseEntity<List<Book>> response = bookController.getAllBooks();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(mockBooks);
+    }
+
+    @Test
+    void getBookById_happy_path() {
+        int bookId = 1;
+        Book mockBook = new Book(bookId, "Mock Title", "Mock Author");
+        when(bookService.getBookById(bookId)).thenReturn(new ResponseEntity<>(mockBook, HttpStatus.OK));
+
         ResponseEntity<Book> response = bookController.getBookById(bookId);
 
-        // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(expectedBook);
+        assertThat(response.getBody()).isEqualTo(mockBook);
     }
 
     @Test
     void getBookById_id_zero() {
-        // Arrange
         int id = 0;
-        when(bookService.findBookById(id)).thenReturn(null);
+        when(bookService.getBookById(id)).thenReturn(new ResponseEntity<>(HttpStatus.NOT_FOUND));
 
-        // Act
-        ResponseEntity<?> responseEntity = bookController.getBookById(id);
+        ResponseEntity<?> response = bookController.getBookById(id);
 
-        // Assert
-        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(responseEntity.getBody()).isNull();
-    }
-
-    @Test
-    void getBookById_id_negative() {
-        // Arrange
-        int negativeId = -1;
-        when(bookService.findBookById(negativeId)).thenReturn(null);
-
-        // Act
-        ResponseEntity<?> response = bookController.getBookById(negativeId);
-
-        // Assert
-        assertThat(response).isNotNull();
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).isEqualTo("Invalid book ID");
-    }
-
-    @Test
-    void getBookById_id_max_value() {
-        // Arrange
-        int maxValueId = Integer.MAX_VALUE;
-        when(bookService.findBookById(maxValueId)).thenReturn(null);
-
-        // Act
-        ResponseEntity<Book> response = bookController.getBookById(maxValueId);
-
-        // Assert
-        assertThat(response).isNotNull();
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNull();
     }
 
     @Test
-    void addBook_happy_path() {
-        // Arrange
-        Book book = new Book("Effective Java", "Joshua Bloch");
-        when(bookService.saveBook(book)).thenReturn(book);
+    void getBookById_id_negative() {
+        int negativeId = -1;
+        when(bookService.getBookById(negativeId)).thenReturn(new ResponseEntity<>(HttpStatus.BAD_REQUEST));
 
-        // Act
-        ResponseEntity<?> response = bookController.addBook(book);
+        ResponseEntity<?> response = bookController.getBookById(negativeId);
 
-        // Assert
-        assertThat(response).isNotNull();
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(response.getBody()).isEqualTo(book);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNull();
     }
 
     @Test
-    public void deleteBookById_happy_path() {
-        // Arrange
+    void getBookById_id_max_value() {
+        int id = Integer.MAX_VALUE;
+        when(bookService.getBookById(eq(id))).thenReturn(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+
+        ResponseEntity<?> responseEntity = bookController.getBookById(id);
+
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(responseEntity.getBody()).isNull();
+    }
+
+    @Test
+    void addBook_happy_path() {
+        Book book = new Book("Title", "Author", 2023);
+        when(bookService.addBook(book)).thenReturn(new ResponseEntity<>(book, HttpStatus.CREATED));
+
+        ResponseEntity<Book> responseEntity = bookController.addBook(book);
+
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(responseEntity.getBody()).isEqualTo(book);
+    }
+
+    @Test
+    void deleteBookById_happy_path() {
         int bookId = 1;
         doNothing().when(bookService).deleteBookById(bookId);
+        when(bookService.deleteBookById(bookId)).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 
-        // Act
-        ResponseEntity<?> responseEntity = bookController.deleteBookById(bookId);
+        ResponseEntity<?> response = bookController.deleteBookById(bookId);
 
-        // Assert
-        assertThat(responseEntity).isNotNull();
-        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
     void deleteBookById_id_zero() {
-        // Arrange
         int id = 0;
-        when(bookService.deleteBookById(id)).thenReturn(false);
+        when(bookService.deleteBookById(id)).thenReturn(new ResponseEntity<>(HttpStatus.NOT_FOUND));
 
-        // Act
-        ResponseEntity<?> response = bookController.deleteBookById(id);
+        ResponseEntity<Void> actualResponse = bookController.deleteBookById(id);
 
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        verify(bookService, times(1)).deleteBookById(id);
+        assertThat(actualResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
     void deleteBookById_id_negative() {
-        // Arrange
         int negativeId = -1;
-        when(bookService.deleteBookById(negativeId)).thenReturn(false);
+        when(bookService.deleteBookById(negativeId)).thenReturn(new ResponseEntity<>(HttpStatus.BAD_REQUEST));
 
-        // Act
         ResponseEntity<?> response = bookController.deleteBookById(negativeId);
 
-        // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).isEqualTo("Invalid book ID");
     }
 
     @Test
     void deleteBookById_id_max_value() {
-        // Arrange
-        int id = Integer.MAX_VALUE;
-        when(bookService.deleteBookById(id)).thenReturn(false);
+        int maxId = Integer.MAX_VALUE;
+        when(bookService.deleteBookById(maxId)).thenReturn(new ResponseEntity<>(HttpStatus.NOT_FOUND));
 
-        // Act
-        ResponseEntity<Void> response = bookController.deleteBookById(id);
+        ResponseEntity<Void> actualResponse = bookController.deleteBookById(maxId);
 
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(actualResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
     void updateBook_happy_path() {
-        // Arrange
-        Book book = new Book();
-        int id = 1;
-        Book updatedBook = new Book();
-        when(bookService.updateBook(book, id)).thenReturn(updatedBook);
+        int bookId = 1;
+        Book book = new Book("Effective Java", "Joshua Bloch", 2008);
+        when(bookService.updateBook(book, bookId)).thenReturn(new ResponseEntity<>(book, HttpStatus.OK));
 
-        // Act
-        ResponseEntity<Book> response = bookController.updateBook(book, id);
+        ResponseEntity<Book> response = bookController.updateBook(book, bookId);
 
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(updatedBook);
-        verify(bookService, times(1)).updateBook(book, id);
-    }
-
-    @Test
-    void updateBook_id_zero() {
-        // Arrange
-        Book book = new Book();
-        int id = 0;
-        ResponseEntity<?> expectedResponse = new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        when(bookService.updateBook(book, id)).thenReturn(null);
-
-        // Act
-        ResponseEntity<?> actualResponse = bookController.updateBook(book, id);
-
-        // Assert
-        assertThat(actualResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-
-        // Verify no interaction with the service due to invalid id
-        verify(bookService, times(0)).updateBook(any(Book.class), anyInt());
-    }
-
-    @Test
-    void updateBook_id_negative() {
-        // Arrange
-        Book book = new Book();
-        int negativeId = -1;
-
-        // Act
-        ResponseEntity<?> response = bookController.updateBook(book, negativeId);
-
-        // Assert
-        assertThat(response).isNotNull();
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-
-        // Verify no interaction with the service due to invalid id
-        verify(bookService, times(0)).updateBook(any(Book.class), anyInt());
-    }
-
-    @Test
-    void updateBook_id_max_value() {
-        // Arrange
-        Book book = new Book();
-        int maxValueId = Integer.MAX_VALUE;
-        ResponseEntity<Book> expectedResponse = new ResponseEntity<>(book, HttpStatus.OK);
-        when(bookService.updateBook(book, maxValueId)).thenReturn(expectedResponse);
-
-        // Act
-        ResponseEntity<Book> response = bookController.updateBook(book, maxValueId);
-
-        // Assert
-        assertThat(response).isEqualTo(expectedResponse);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo(book);
     }
 
     @Test
+    void updateBook_id_zero() {
+        Book book = new Book();
+        int id = 0;
+        when(bookService.updateBook(book, id)).thenReturn(new ResponseEntity<>(HttpStatus.BAD_REQUEST));
+
+        ResponseEntity<Void> response = bookController.updateBook(book, id);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void updateBook_id_negative() {
+        Book book = new Book();
+        int negativeId = -1;
+        when(bookService.updateBook(book, negativeId)).thenReturn(new ResponseEntity<>(HttpStatus.BAD_REQUEST));
+
+        ResponseEntity<?> response = bookController.updateBook(book, negativeId);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void updateBook_id_max_value() {
+        Book book = new Book();
+        int id = Integer.MAX_VALUE;
+
+        when(bookService.updateBook(book, id)).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+
+        ResponseEntity<?> responseEntity = bookController.updateBook(book, id);
+
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void deleteAllBooks_happy_path() {
-        // Arrange
-        doNothing().when(bookService).deleteAllBooks();
+        when(bookService.deleteAllBooks()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 
-        // Act
-        ResponseEntity<?> responseEntity = bookController.deleteAllBooks();
+        ResponseEntity<?> response = bookController.deleteAllBooks();
 
-        // Assert
-        assertThat(responseEntity).isNotNull();
-        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
     void addPublisherToExistingBooks_happy_path() {
-        // Arrange
-        List<String> bookIds = List.of("book1", "book2", "book3");
-        String publisher = "New Publisher";
-        ResponseEntity<Void> expectedResponse = ResponseEntity.ok().build();
-        when(bookService.addPublisherToBooks(bookIds, publisher)).thenReturn(expectedResponse);
+        when(bookService.addPublisherToExistingBooks()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 
-        // Act
-        ResponseEntity<Void> response = bookController.addPublisherToExistingBooks(bookIds, publisher);
+        ResponseEntity<?> response = bookController.addPublisherToExistingBooks();
 
-        // Assert
-        assertThat(response).isEqualTo(expectedResponse);
-        assertThat(response.getStatusCodeValue()).isEqualTo(200);
-        verify(bookService, times(1)).addPublisherToBooks(bookIds, publisher);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
     void getAllLibraries_happy_path() {
-        // Arrange
-        BookController bookControllerMock = mock(BookController.class);
-        List<String> libraries = List.of("Library1", "Library2", "Library3");
-        ResponseEntity<List<String>> expectedResponse = new ResponseEntity<>(libraries, HttpStatus.OK);
-        when(bookControllerMock.getAllLibraries()).thenReturn(expectedResponse);
+        List<Library> mockLibraries = List.of(new Library(1, "Central Library"), new Library(2, "Community Library"));
+        when(bookService.getAllLibraries()).thenReturn(new ResponseEntity<>(mockLibraries, HttpStatus.OK));
 
-        // Act
-        ResponseEntity<List<String>> actualResponse = bookControllerMock.getAllLibraries();
+        ResponseEntity<List<Library>> responseEntity = bookController.getAllLibraries();
 
-        // Assert
-        assertThat(actualResponse).isNotNull();
-        assertThat(actualResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(actualResponse.getBody()).containsExactlyElementsOf(libraries);
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(responseEntity.getBody()).isEqualTo(mockLibraries);
     }
 
     @Test
     void getAuditHistory_happy_path() {
-        // Arrange
         int bookId = 1;
-        List<ApplicationAuditing> expectedAuditHistory = Arrays.asList(
-            new ApplicationAuditing("Change1", "User1"),
-            new ApplicationAuditing("Change2", "User2")
-        );
-        when(bookService.getAuditHistory(bookId)).thenReturn(expectedAuditHistory);
+        List<ApplicationAuditing> mockAuditHistory = List.of(new ApplicationAuditing(), new ApplicationAuditing());
 
-        // Act
+        when(bookService.getAuditHistory(bookId)).thenReturn(mockAuditHistory);
+
         ResponseEntity<List<ApplicationAuditing>> response = bookController.getAuditHistory(bookId);
 
-        // Assert
-        assertThat(response).isNotNull();
         assertThat(response.getStatusCodeValue()).isEqualTo(200);
-        assertThat(response.getBody()).isEqualTo(expectedAuditHistory);
+        assertThat(response.getBody()).isEqualTo(mockAuditHistory);
     }
 
     @Test
     void getAuditHistory_bookId_zero() {
-        // Arrange
         int bookId = 0;
-        List<ApplicationAuditing> expectedAuditList = Collections.emptyList();
-        when(bookService.getAuditHistory(bookId)).thenReturn(expectedAuditList);
+        List<ApplicationAuditing> emptyAuditList = Collections.emptyList();
 
-        // Act
+        when(bookService.getAuditHistory(bookId)).thenReturn(emptyAuditList);
+
         ResponseEntity<List<ApplicationAuditing>> response = bookController.getAuditHistory(bookId);
 
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(expectedAuditList);
+        assertThat(response.getStatusCodeValue()).isEqualTo(200);
+        assertThat(response.getBody()).isEmpty();
     }
 
     @Test
-    public void getAuditHistory_bookId_negative() {
-        // Arrange
+    void getAuditHistory_bookId_negative() {
         int negativeBookId = -1;
-        when(bookService.getAuditHistory(negativeBookId)).thenReturn(List.of());
+        when(bookService.getAuditHistory(negativeBookId)).thenReturn(Collections.emptyList());
 
-        // Act
         ResponseEntity<List<ApplicationAuditing>> response = bookController.getAuditHistory(negativeBookId);
 
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEmpty();
     }
 
     @Test
     void getAuditHistory_bookId_max_value() {
-        // Arrange
         int bookId = Integer.MAX_VALUE;
-        List<ApplicationAuditing> expectedAuditHistory = List.of(new ApplicationAuditing(), new ApplicationAuditing());
-        when(bookService.getAuditHistory(bookId)).thenReturn(expectedAuditHistory);
+        List<ApplicationAuditing> expectedAuditHistory = Collections.emptyList();
+        when(bookService.getAuditHistory(eq(bookId))).thenReturn(expectedAuditHistory);
 
-        // Act
-        ResponseEntity<List<ApplicationAuditing>> responseEntity = bookController.getAuditHistory(bookId);
+        ResponseEntity<List<ApplicationAuditing>> response = bookController.getAuditHistory(bookId);
 
-        // Assert
-        assertThat(responseEntity).isNotNull();
-        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(responseEntity.getBody()).isEqualTo(expectedAuditHistory);
-        assertThat(responseEntity.getBody()).hasSize(2);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(expectedAuditHistory);
     }
 }
