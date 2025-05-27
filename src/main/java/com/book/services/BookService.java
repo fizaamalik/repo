@@ -15,9 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class BookService {
+
     @Autowired
     private BookRepo bookRepo;
 
@@ -31,103 +33,88 @@ public class BookService {
     @Autowired
     private LibraryRepository libraryRepo;
 
-//
-
-    public ResponseEntity getAllBooks() {
+    public ResponseEntity<List<Book>> getAllBooks() {
         List<Book> list = bookRepo.findAll();
-        try {
-            if (list.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No books found");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (list.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(list);
         }
         return ResponseEntity.ok(list);
     }
 
-    public ResponseEntity getBookById(int id) {
-
-        try {
-            if (bookRepo.existsById(id)) {
-                Book book = bookRepo.findById(id);
-                return ResponseEntity.ok(book);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+    public ResponseEntity<?> getBookById(int id) {
+        Optional<Book> optionalBook = Optional.ofNullable(bookRepo.findById(id));
+        if (optionalBook.isPresent()) {
+            return ResponseEntity.ok(optionalBook.get());
         }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Book does't exist by given id ");
-
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Book doesn't exist by given id");
     }
 
-    public ResponseEntity addBook(Book book) {
+    @Transactional
+    public ResponseEntity<?> addBook(Book book) {
         try {
             if (book.getLibrary() == null) {
-                throw new IllegalArgumentException("Library is mandatory for book creation.");
+                return ResponseEntity.badRequest().body("Library is mandatory for book creation.");
             }
             if (book.getPublisher() == null) {
-                throw new IllegalArgumentException("Publisher is mandatory for book creation.");
+                return ResponseEntity.badRequest().body("Publisher is mandatory for book creation.");
             }
-
-            Book b = bookRepo.save(book);
-            createAuditEntry(b, "system", "Create");
-
-            return ResponseEntity.ok(b);
+            Book savedBook = bookRepo.save(book);
+            createAuditEntry(savedBook, "system", "Create");
+            return ResponseEntity.ok(savedBook);
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid attribute values or error occurred.");
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid attribute values");
     }
 
+    @Transactional
+    public ResponseEntity<?> deleteBookById(int id) {
+        Optional<Book> optionalBook = Optional.ofNullable(bookRepo.findById(id));
+        if (optionalBook.isPresent()) {
+            Book bookToDelete = optionalBook.get();
+            createAuditEntry(bookToDelete, "system", "Delete");
+            bookRepo.deleteById(id);
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Successfully deleted");
+        }
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Book not found with id: " + id);
+    }
 
-    public ResponseEntity deleteBookById(int id) {
+    @Transactional
+    public ResponseEntity<?> updateBook(Book book, int id) {
         try {
-            if (bookRepo.existsById(id)) {
-                createAuditEntry(bookRepo.findById(id),"system", "Delete");
-                bookRepo.deleteById(id);
-                return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Successfully deleted");
+            Optional<Book> optionalBook = Optional.ofNullable(bookRepo.findById(id));
+            if (optionalBook.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Book not found with id: " + id);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error while deleting the book");
-    }
-
-    public ResponseEntity updateBook(Book book, int id) {
-        try {
-            Book existingBook = bookRepo.findById(id);
+            Book existingBook = optionalBook.get();
             existingBook.setTitle(book.getTitle());
             existingBook.setAuthor(book.getAuthor());
             existingBook.setPublisher(book.getPublisher());
             existingBook.setLibrary(book.getLibrary());
             existingBook.setLastModified(LocalDateTime.now());
             createAuditEntry(existingBook, "system", "Update");
-            bookRepo.save(existingBook);
-
-            return ResponseEntity.status(HttpStatus.OK).body(existingBook);
-
-    } catch(Exception e){
-        e.printStackTrace();
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal Server Error");
+            Book updatedBook = bookRepo.save(existingBook);
+            return ResponseEntity.ok(updatedBook);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Internal Server Error");
+        }
     }
 
-}
-        @Transactional
-        public ResponseEntity deleteAllBooks() {
-
-
-        List<Book> deletedBooks = bookRepo.findAll();
-            for (Book deletedBook : deletedBooks) {
-                createAuditEntry(deletedBook, "system", "DELETE");
-            }
-            bookRepo.deleteAll();
+    @Transactional
+    public ResponseEntity<?> deleteAllBooks() {
+        List<Book> booksToDelete = bookRepo.findAll();
+        for (Book book : booksToDelete) {
+            createAuditEntry(book, "system", "Delete");
+        }
+        bookRepo.deleteAll();
         return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Deleted Successfully");
-
     }
 
-    public ResponseEntity addPublisherToExistingBooks() {
+    @Transactional
+    public ResponseEntity<?> addPublisherToExistingBooks() {
         try {
             List<Book> books = bookRepo.findAll();
-
             for (Book book : books) {
                 if (book.getPublisher() == null) {
                     Publisher publisher = new Publisher();
@@ -135,9 +122,7 @@ public class BookService {
                     book.setPublisher(publisher);
                 }
             }
-
             bookRepo.saveAll(books);
-
             return ResponseEntity.ok("Publisher 'XYZ' added to existing books.");
         } catch (Exception e) {
             e.printStackTrace();
@@ -147,12 +132,8 @@ public class BookService {
 
     public ResponseEntity<List<Library>> getAllLibraries() {
         List<Library> libraries = libraryRepo.findAll();
-        try {
-            if (libraries.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NO_CONTENT).body(libraries);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (libraries.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(libraries);
         }
         return ResponseEntity.ok(libraries);
     }
@@ -164,10 +145,6 @@ public class BookService {
     }
 
     public List<ApplicationAuditing> getAuditHistory(int bookId) {
-
         return bookAuditRepository.findByBookIdOrderByCreateDate(bookId);
     }
-
-
-
 }
